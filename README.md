@@ -20,7 +20,9 @@ Positions on B73 v5 (Zm-B73-REFERENCE-NAM-5.0) for the 983 legacy Panzea SNP mar
        python -I align_flanks.py Zm-B73-REFERENCE-NAM-5.0.fa.gz flanks_to_align.fa > flanks_v5.tsv
 
 3. Merged rows with status `ok` into the table as `precision=exact` (new chr/pos/base, plus-strand
-   alleles, old precision and position recorded in `note`). Merge script: not kept in the repo.
+   alleles, old precision and position recorded in `note`). Script: `merge_flanks.py`:
+
+       python -I merge_flanks.py extracted_vanH/vanHeerwaarden2011_markers_v5
 
 ## Results
 | status | markers |
