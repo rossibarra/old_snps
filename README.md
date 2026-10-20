@@ -1,40 +1,44 @@
 # old_snps: van Heerwaarden 2011 markers on B73 v5
 
-Positions on B73 v5 (Zm-B73-REFERENCE-NAM-5.0) for the 983 legacy Panzea SNP markers.
+B73 v5 (Zm-B73-REFERENCE-NAM-5.0) positions for the 983 legacy Panzea SNP markers of
+van Heerwaarden et al. (2011). Sources and references: [DATA_SOURCES.md](DATA_SOURCES.md).
 
-## Layout
-- `extracted_vanH/vanHeerwaarden2011_markers_v5/`: unpacked `vanHeerwaarden2011_markers_v5_final.zip`
-  - `vanHeerwaarden2011_markers_v5.tsv`: original table (MaizeGDB positions), unmodified
-  - `flanks_to_align.fa`, `align_flanks.py`: published flanks for 49 markers and the aligner
-  - `flanks_v5.tsv`: alignment output (this work)
-  - `vanHeerwaarden2011_markers_v5.merged.tsv`: updated table (this work)
-  - `README.md`: the original instructions
-- `extracted_markers/maize_markers_v5/`: unpacked `maize_markers_v5.zip`, an earlier handoff for the same task. Not run.
-- `environment.yml`: conda env `old-snps` (python 3.11, bioconda `mappy`)
+**Result:** `vanHeerwaarden2011_markers_v5.final.tsv`. The `precision` column says how each
+position was obtained:
 
-## What was done
-1. Created the `old-snps` conda env. `pip install mappy` fails here (no `zlib.h`), so the env uses bioconda.
-2. Aligned the 49 flanks with `align_flanks.py` (minimap2 `sr` preset via mappy) against
-   `/quobyte/jrigrp/DATA/RESOURCES/NAM/fasta/Zm-B73-REFERENCE-NAM-5.0.fa.gz`, on a compute node (4 CPUs, 24 GB):
+| precision | markers | meaning |
+|---|---|---|
+| exact | 550 | exact SNP base on v5 |
+| amplicon | 312 | SNP lies somewhere in v5_start–v5_end (MaizeGDB amplicon) |
+| amplicon_inferred | 17 | interval inferred from placed SNPs in the same Panzea amplicon (±750 bp); not measured for the SNP itself |
+| gene | 17 | only MaizeGDB's v5 gene model |
+| unplaced | 87 | no position |
 
-       python -I align_flanks.py Zm-B73-REFERENCE-NAM-5.0.fa.gz flanks_to_align.fa > flanks_v5.tsv
+## Files
+- `vanHeerwaarden2011_markers_v5.tsv`: input table, positions from MaizeGDB (unmodified)
+- `flanks_to_align.fa`: published flanks for 49 markers
+- `amplicons.tsv`: marker to Panzea assay amplicon
+- `align_flanks.py`: aligns flanks to v5 with minimap2 `sr` (via mappy) and finds the SNP base from the CIGAR
+- `merge_flanks.py`: writes flank hits with status `ok` into the table as `exact` (41 markers; an intermediate `*.merged.tsv`, gitignored)
+- `finalize.py`: accepts 2 low-mapq hits that fall inside a same-amplicon SNP's interval, and infers intervals for 17 unplaced markers
+- `flanks_v5.tsv`: alignment output
+- `run_pipeline.sh`, `environment.yml`: rebuild the final table; conda env `old-snps` (python 3.11, bioconda `mappy`; `pip install mappy` fails here for lack of `zlib.h`)
 
-3. Merged rows with status `ok` into the table as `precision=exact` (new chr/pos/base, plus-strand
-   alleles, old precision and position recorded in `note`). Script: `merge_flanks.py`:
+## Rebuild
+`./run_pipeline.sh` runs merge and finalize, which are light. Add `--align` to redo the alignment, which
+indexes the genome and needs a compute node (it ran with 4 CPUs, 24 GB):
 
-       python -I merge_flanks.py extracted_vanH/vanHeerwaarden2011_markers_v5
+    HPC_CPUS=4 HPC_MEM=24G HPC_TIME=01:00:00 ~/.claude/bin/hpc_run './run_pipeline.sh --align'
 
-## Results
-| status | markers |
-|---|---|
-| ok, merged as exact | 41 (7 were amplicon, 33 unplaced, 1 was PZA00355.2) |
-| low_mapq, not merged | 6: PZA00060.2, PZA00088.3, PZA00213.19, PZA00395.2, PZA03305.7, PZB00221.3 |
-| unmapped, not merged | 2: PZA00225.8, PZA03001.15 |
+Merge and finalize were rerun from the committed inputs and reproduce the final table byte for byte.
+The alignment step was not rerun after the files were moved.
 
-Merged table: 548 exact, 312 amplicon, 17 gene, 106 unplaced (was 508 / 319 / 17 / 139).
+## Flank alignment results
+41 of 49 flanks aligned cleanly (`ok`) and 2 low-mapq hits (PZA03305.7, PZB00221.3) were accepted by the
+amplicon rule. The other 4 low-mapq hits (PZA00060.2, PZA00088.3, PZA00213.19, PZA00395.2) and the 2
+unmapped (PZA00225.8, PZA03001.15) get no exact position; their precision in the final table is
+unplaced (PZA00060.2, PZA00088.3, PZA00213.19, PZA00225.8), amplicon (PZA00395.2) or amplicon_inferred (PZA03001.15). PZA00355.2, which the MaizeGDB notes flagged as probably wrong, moved 112 bp
+(chr6:89415515 to chr6:89415403).
 
-Checks: all 7 amplicon-level markers landed inside their MaizeGDB amplicon. PZA00355.2 moved
-112 bp (chr6:89415515 to chr6:89415403), as the original README suspected.
-
-Not checked: the `alleles_v5_plus` strand flip for minus-strand hits against the other 508 exact rows,
-and the low_mapq alignments.
+Not checked: the `alleles_v5_plus` strand flip for minus-strand hits against the other exact rows, and the
+low-mapq alignments beyond the amplicon rule.
